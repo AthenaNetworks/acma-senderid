@@ -26,6 +26,7 @@ use AthenaNetworks\AcmaSenderId\Exceptions\TransportException;
 use AthenaNetworks\AcmaSenderId\Exceptions\ValidationException;
 use AthenaNetworks\AcmaSenderId\Tests\Fixtures\Factory;
 use AthenaNetworks\AcmaSenderId\Tests\Fixtures\MockHttpClient;
+use AthenaNetworks\AcmaSenderId\Webhook\Notification;
 use GuzzleHttp\Exception\ConnectException;
 use GuzzleHttp\Psr7\Request;
 use GuzzleHttp\Psr7\Response;
@@ -428,6 +429,29 @@ describe('notifications', function () {
 
         expect($this->http->lastRequest()->getMethod())->toBe('DELETE')
             ->and($this->http->lastRequest()->getUri()->getPath())->toBe('/sndr/rcsva/v1/notification');
+    });
+});
+
+describe('fetchNotified', function () {
+    it('fetches the object a notification refers to', function () {
+        $this->http->queueJson(['ChatbotInfo' => ['ServiceName' => 'ATHENA']]);
+
+        $object = $this->client->fetchNotified(Notification::fromArray(['Entity' => ['EntityType' => 'Chatbot', 'EntityId' => CHATBOT_ID, 'NotifyReason' => 'Modify']]));
+
+        expect($object)->toBeInstanceOf(\AthenaNetworks\AcmaSenderId\Data\Chatbots\Chatbot::class)
+            ->and($object->id)->toBe(CHATBOT_ID)
+            ->and($this->http->lastRequest()->getUri()->getPath())->toBe('/sndr/rcsva/v1/chatbots/' . CHATBOT_ID);
+    });
+
+    it('returns null for deletions without a request', function () {
+        expect($this->client->fetchNotified(Notification::fromArray(['Entity' => ['EntityType' => 'Brand', 'EntityId' => BRAND_ID, 'NotifyReason' => 'Delete']])))->toBeNull()
+            ->and($this->http->requests)->toBe([]);
+    });
+
+    it('returns null when the object has since been deleted', function () {
+        $this->http->queueJson(['messages' => [['code' => '24400', 'message' => 'The entity requested was not found']]], 404);
+
+        expect($this->client->fetchNotified(Notification::fromArray(['Entity' => ['EntityType' => 'Partner', 'EntityId' => 'p1', 'NotifyReason' => 'Create']])))->toBeNull();
     });
 });
 

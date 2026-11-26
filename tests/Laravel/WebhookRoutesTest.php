@@ -30,6 +30,13 @@ describe('token endpoint', function () {
         expect(app(NotificationTokenIssuer::class)->verify($response->json('access_token')))->toBeTrue();
     });
 
+    it('accepts credentials the way ACMA sends them (form body, no query string)', function () {
+        $this->call('POST', TOKEN_URL, ['grant_type' => 'client_credentials', 'client_id' => 'acma', 'client_secret' => 'a-very-long-webhook-secret'], [], [], [
+            'CONTENT_TYPE' => 'application/x-www-form-urlencoded',
+            'REMOTE_ADDR' => '52.189.234.100',
+        ])->assertOk()->assertJson(['token_type' => 'Bearer']);
+    });
+
     it('accepts form body and basic auth credentials', function () {
         $this->post(TOKEN_URL, ['grant_type' => 'client_credentials', 'client_id' => 'acma', 'client_secret' => 'a-very-long-webhook-secret'])->assertOk();
 
@@ -67,9 +74,9 @@ describe('notification endpoint', function () {
         Event::assertDispatched(NotificationReceived::class, fn (NotificationReceived $e) => $e->notification->payload === $payload);
         Event::assertDispatched($typedEvent);
     })->with([
-        'chatbot' => [['ChatbotId' => 'c1', 'Verified' => 'complete'], ChatbotChanged::class],
-        'brand' => [['Type' => 'Brand', 'Id' => 'b1'], BrandChanged::class],
-        'partner' => [['PartnerId' => 'p1'], PartnerChanged::class],
+        'chatbot' => [['Entity' => ['EntityType' => 'Chatbot', 'EntityId' => 'c1', 'NotifyReason' => 'Modify']], ChatbotChanged::class],
+        'brand' => [['Entity' => ['EntityType' => 'Brand', 'EntityId' => 'b1', 'NotifyReason' => 'Create']], BrandChanged::class],
+        'partner' => [['Entity' => ['EntityType' => 'Partner', 'EntityId' => 'p1', 'NotifyReason' => 'Delete']], PartnerChanged::class],
     ]);
 
     it('dispatches only the generic event for unknown types', function () {

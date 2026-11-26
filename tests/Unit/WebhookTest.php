@@ -3,7 +3,7 @@
 declare(strict_types=1);
 
 use AthenaNetworks\AcmaSenderId\Enums\NotificationType;
-use AthenaNetworks\AcmaSenderId\Enums\VerificationStatus;
+use AthenaNetworks\AcmaSenderId\Enums\NotifyReason;
 use AthenaNetworks\AcmaSenderId\Exceptions\InvalidArgumentException;
 use AthenaNetworks\AcmaSenderId\Webhook\InvalidClientException;
 use AthenaNetworks\AcmaSenderId\Webhook\Notification;
@@ -69,34 +69,43 @@ describe('token issuer', function () {
 });
 
 describe('notification parsing', function () {
-    it('detects the type from an explicit field', function () {
-        $n = Notification::fromJson('{"type":"chatbot","id":"abc","Verified":"complete"}')[0];
+    // Payload shape captured from the ACMA test tenant.
+    it('parses real ACMA notifications', function (string $body, NotificationType $type, NotifyReason $reason) {
+        $n = Notification::fromJson($body)[0];
 
-        expect($n->type)->toBe(NotificationType::Chatbot)
-            ->and($n->isSenderId())->toBeTrue()
-            ->and($n->objectId)->toBe('abc')
-            ->and($n->verificationStatus())->toBe(VerificationStatus::Complete);
-    });
-
-    it('infers the type from the object shape', function (array $payload, NotificationType $type, string $id) {
-        $n = Notification::fromArray($payload);
-
-        expect($n->type)->toBe($type)->and($n->objectId)->toBe($id);
+        expect($n->type)->toBe($type)
+            ->and($n->reason)->toBe($reason)
+            ->and($n->objectId)->toBe('35b76150-d3be-4dab-ba8d-e468612e6d77')
+            ->and($n->get('notifyreason'))->toBe($reason->value);
     })->with([
-        'chatbot' => [['ChatbotId' => 'c1', 'BrandId' => 'b1'], NotificationType::Chatbot, 'c1'],
-        'brand' => [['BrandId' => 'b1', 'BrandInfo' => []], NotificationType::Brand, 'b1'],
-        'partner' => [['partnerId' => 'p1'], NotificationType::Partner, 'p1'],
+        'brand create' => ['{"Entity":{"EntityType":"Brand","EntityId":"35b76150-d3be-4dab-ba8d-e468612e6d77","NotifyReason":"Create"}}', NotificationType::Brand, NotifyReason::Create],
+        'brand modify' => ['{"Entity":{"EntityType":"Brand","EntityId":"35b76150-d3be-4dab-ba8d-e468612e6d77","NotifyReason":"Modify"}}', NotificationType::Brand, NotifyReason::Modify],
+        'chatbot delete' => ['{"Entity":{"EntityType":"Chatbot","EntityId":"35b76150-d3be-4dab-ba8d-e468612e6d77","NotifyReason":"Delete"}}', NotificationType::Chatbot, NotifyReason::Delete],
+        'partner delete' => ['{"Entity":{"EntityType":"Partner","EntityId":"35b76150-d3be-4dab-ba8d-e468612e6d77","NotifyReason":"Delete"}}', NotificationType::Partner, NotifyReason::Delete],
     ]);
 
-    it('reads nested verification info', function () {
-        $n = Notification::fromArray(['ChatbotId' => 'c1', 'VerificationInfo' => ['Verified' => 'failed']]);
+    it('exposes reason helpers', function () {
+        $n = Notification::fromArray(['Entity' => ['EntityType' => 'Chatbot', 'EntityId' => 'c1', 'NotifyReason' => 'Modify']]);
 
-        expect($n->verificationStatus())->toBe(VerificationStatus::Failed)
-            ->and($n->get('chatbotid'))->toBe('c1');
+        expect($n->isSenderId())->toBeTrue()
+            ->and($n->isModified())->toBeTrue()
+            ->and($n->isCreated())->toBeFalse()
+            ->and($n->isDeleted())->toBeFalse();
     });
 
+    it('falls back to top-level fields and object shapes', function (array $payload, NotificationType $type, string $id) {
+        $n = Notification::fromArray($payload);
+
+        expect($n->type)->toBe($type)->and($n->objectId)->toBe($id)->and($n->reason)->toBeNull();
+    })->with([
+        'explicit type' => [['type' => 'chatbot', 'id' => 'abc'], NotificationType::Chatbot, 'abc'],
+        'chatbot shape' => [['ChatbotId' => 'c1', 'BrandId' => 'b1'], NotificationType::Chatbot, 'c1'],
+        'brand shape' => [['BrandId' => 'b1', 'BrandInfo' => []], NotificationType::Brand, 'b1'],
+        'partner shape' => [['partnerId' => 'p1'], NotificationType::Partner, 'p1'],
+    ]);
+
     it('accepts a list of notifications', function () {
-        $list = Notification::fromJson('[{"BrandId":"b1"},{"PartnerId":"p1"}]');
+        $list = Notification::fromJson('[{"Entity":{"EntityType":"Brand","EntityId":"b1"}},{"Entity":{"EntityType":"Partner","EntityId":"p1"}}]');
 
         expect($list)->toHaveCount(2)
             ->and($list[0]->isBrand())->toBeTrue()

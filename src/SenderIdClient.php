@@ -6,7 +6,12 @@ namespace AthenaNetworks\AcmaSenderId;
 
 use AthenaNetworks\AcmaSenderId\Auth\ClientCredentialsTokenProvider;
 use AthenaNetworks\AcmaSenderId\Auth\TokenProvider;
+use AthenaNetworks\AcmaSenderId\Data\Brands\Brand;
+use AthenaNetworks\AcmaSenderId\Data\Chatbots\Chatbot;
+use AthenaNetworks\AcmaSenderId\Data\Partners\Partner;
+use AthenaNetworks\AcmaSenderId\Enums\NotificationType;
 use AthenaNetworks\AcmaSenderId\Exceptions\ApiException;
+use AthenaNetworks\AcmaSenderId\Exceptions\NotFoundException;
 use AthenaNetworks\AcmaSenderId\Http\Transport;
 use AthenaNetworks\AcmaSenderId\Resources\Brands;
 use AthenaNetworks\AcmaSenderId\Resources\Chatbots;
@@ -14,6 +19,7 @@ use AthenaNetworks\AcmaSenderId\Resources\NetworkProviders;
 use AthenaNetworks\AcmaSenderId\Resources\Notifications;
 use AthenaNetworks\AcmaSenderId\Resources\Partners;
 use AthenaNetworks\AcmaSenderId\Support\Attributes;
+use AthenaNetworks\AcmaSenderId\Webhook\Notification;
 use Http\Discovery\Psr17FactoryDiscovery;
 use Http\Discovery\Psr18ClientDiscovery;
 use Psr\Http\Client\ClientInterface;
@@ -124,6 +130,32 @@ final class SenderIdClient
         ]);
 
         return Attributes::of($data)->bool('HasValidUseCase') ?? false;
+    }
+
+    /**
+     * Fetch the current state of the object a push notification refers to.
+     *
+     * Returns null for deletions, unrecognised notifications, or objects that
+     * no longer exist (notifications can arrive late and out of order).
+     *
+     * @throws ApiException
+     */
+    public function fetchNotified(Notification $notification): Brand|Chatbot|Partner|null
+    {
+        if ($notification->objectId === null || $notification->isDeleted()) {
+            return null;
+        }
+
+        try {
+            return match ($notification->type) {
+                NotificationType::Brand => $this->brands()->get($notification->objectId),
+                NotificationType::Chatbot => $this->chatbots()->get($notification->objectId),
+                NotificationType::Partner => $this->partners()->get($notification->objectId),
+                null => null,
+            };
+        } catch (NotFoundException) {
+            return null;
+        }
     }
 
     /**

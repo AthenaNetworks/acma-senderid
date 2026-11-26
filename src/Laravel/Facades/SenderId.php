@@ -16,6 +16,7 @@ use Illuminate\Support\Facades\Facade;
  * @method static \AthenaNetworks\AcmaSenderId\Resources\Notifications notifications()
  * @method static \AthenaNetworks\AcmaSenderId\Resources\NetworkProviders networkProviders()
  * @method static bool hasValidUseCase(string $abn, string $senderId)
+ * @method static \AthenaNetworks\AcmaSenderId\Data\Brands\Brand|\AthenaNetworks\AcmaSenderId\Data\Chatbots\Chatbot|\AthenaNetworks\AcmaSenderId\Data\Partners\Partner|null fetchNotified(\AthenaNetworks\AcmaSenderId\Webhook\Notification $notification)
  * @method static \AthenaNetworks\AcmaSenderId\Http\Transport transport()
  *
  * @see SenderIdClient

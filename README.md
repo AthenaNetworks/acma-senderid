@@ -208,9 +208,13 @@ if (! $issuer->verifyAuthorizationHeader($_SERVER['HTTP_AUTHORIZATION'] ?? null)
     exit;
 }
 foreach (Notification::fromJson(file_get_contents('php://input')) as $notification) {
-    $notification->type;        // NotificationType::Chatbot / Brand / Partner, or null
-    $notification->objectId;    // e.g. the ChatbotId
+    $notification->type;        // NotificationType::Chatbot / Brand / Partner
+    $notification->objectId;    // the entity's UUID
+    $notification->reason;      // NotifyReason::Create / Modify / Delete
     $notification->payload;     // the full decoded body
+
+    // Notifications carry no data: fetch the current state (null for deletions).
+    $object = $client->fetchNotified($notification);   // Brand|Chatbot|Partner|null
 }
 
 // Register both URLs with ACMA:
@@ -220,14 +224,21 @@ $client->notifications()->subscribeTo(
 );
 ```
 
-Things to know:
+Things to know (observed on the ACMA test tenant, as the spec doesn't document them):
 
-- ACMA does not document the notification body. `Notification` makes a best effort to work out the type and ID, and always exposes the full payload.
-- Notifications are not guaranteed to arrive in order. Re-fetch the object if you need its current state.
-- ACMA retries any notification that doesn't get a 2xx response, so respond quickly.
-- A subscription can take up to an hour to take effect.
+- Each notification is one small JSON object:
+
+  ```json
+  {"Entity": {"EntityType": "Chatbot", "EntityId": "5bcb167b-…", "NotifyReason": "Modify"}}
+  ```
+
+  It contains no status or object data, so call `fetchNotified()` (or `get()`) for the current state.
+- When requesting a token, ACMA sends the AuthUri's query parameters as a form-encoded POST body. Both the Laravel token route and `NotificationTokenIssuer` accept that. ACMA caches the token and reuses it across notifications.
+- Notifications usually arrive within a few seconds, but not necessarily in order. For example, a Sender ID's `Create` can arrive before its brand's `Create`.
+- A new subscription took about 15 minutes to activate (ACMA says up to an hour). Changes made in the meantime were then delivered in one burst.
+- ACMA retries any notification that doesn't get a 2xx response, so respond quickly and queue the work.
 - If AuthUri and CallbackUri are the same, ACMA performs no authentication.
-- ACMA's source IPs are listed in `AcmaIpAddresses::ALL`.
+- Requests came from `52.189.234.100`. The full published list is in `AcmaIpAddresses::ALL`.
 
 ## Laravel
 
@@ -282,10 +293,16 @@ Listen for events:
 
 ```php
 use AthenaNetworks\AcmaSenderId\Laravel\Events\ChatbotChanged;
+use AthenaNetworks\AcmaSenderId\Laravel\Facades\SenderId;
 
 Event::listen(function (ChatbotChanged $event) {
-    $chatbotId = $event->notification->objectId;
-    // Queue your listener (ShouldQueue) and re-fetch: SenderId::senderIds()->get($chatbotId)
+    // Queue your listener (ShouldQueue): ACMA expects a fast 2xx response.
+    if ($event->notification->isDeleted()) {
+        return;   // remove it locally
+    }
+
+    $chatbot = SenderId::fetchNotified($event->notification);   // Chatbot|null
+    $chatbot?->verificationStatus();                           // e.g. VerificationStatus::Complete
 });
 ```
 

@@ -10,4 +10,6 @@
 - Laravel service provider, facade, webhook routes, events and Artisan commands.
 - Handles ACMA's undocumented `x-ACMA-expiresOn` behaviour: 7-digit fractional format,
   Australia/Sydney local time in responses, and re-sending the expiry on chatbot updates.
+- Notification parsing for ACMA's actual payload (`Entity.EntityType/EntityId/NotifyReason`),
+  `NotifyReason` enum, and `SenderIdClient::fetchNotified()`.
 - Live write tests (brand, draft Sender ID, telco partner lifecycles) for test tenants.

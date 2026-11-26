@@ -5,29 +5,37 @@ declare(strict_types=1);
 namespace AthenaNetworks\AcmaSenderId\Webhook;
 
 use AthenaNetworks\AcmaSenderId\Enums\NotificationType;
-use AthenaNetworks\AcmaSenderId\Enums\VerificationStatus;
+use AthenaNetworks\AcmaSenderId\Enums\NotifyReason;
 use AthenaNetworks\AcmaSenderId\Exceptions\InvalidArgumentException;
 use AthenaNetworks\AcmaSenderId\Support\Attributes;
 
 /**
  * A push notification received from ACMA at the subscription's CallbackUri.
  *
- * The ACMA spec does not document the notification body, so this class makes a
- * best effort to identify the change type and object ID and always exposes the
- * full decoded payload via $payload / get(). Notifications are not guaranteed to
- * arrive in chronological order: re-fetch the object if you need its current state.
+ * Observed payload (not documented in the OpenAPI spec):
+ *
+ *     {"Entity": {"EntityType": "Chatbot", "EntityId": "<uuid>", "NotifyReason": "Modify"}}
+ *
+ * EntityType is Brand, Chatbot or Partner; NotifyReason is Create, Modify or Delete.
+ * Notifications carry no object data and may arrive out of order or in bursts,
+ * so re-fetch the object for its current state (see SenderIdClient::fetchNotified()).
+ *
+ * Parsing is tolerant: unknown shapes keep their full payload in $payload.
  */
 final readonly class Notification
 {
-    private const array TYPE_KEYS = ['Type', 'NotificationType', 'ObjectType', 'ChangeType', 'EventType', 'Entity', 'EntityType', 'ResourceType'];
+    private const array TYPE_KEYS = ['EntityType', 'Type', 'NotificationType', 'ObjectType', 'ChangeType', 'EventType', 'ResourceType'];
+
+    private const array ID_KEYS = ['EntityId', 'Id', 'ObjectId', 'ResourceId'];
 
     /**
-     * @param array<array-key, mixed> $payload
+     * @param array<array-key, mixed> $payload The full decoded notification body.
      */
     public function __construct(
         public array $payload,
         public ?NotificationType $type,
         public ?string $objectId,
+        public ?NotifyReason $reason = null,
     ) {
     }
 
@@ -36,9 +44,14 @@ final readonly class Notification
      */
     public static function fromArray(array $payload): self
     {
-        $type = self::detectType($payload);
+        $root = Attributes::of($payload);
+        $entity = Attributes::of($root->array('Entity'));
 
-        return new self($payload, $type, self::detectId($payload, $type));
+        $type = self::detectType($entity) ?? self::detectType($root) ?? self::inferType($root);
+        $id = self::detectId($entity, $type) ?? self::detectId($root, $type);
+        $reason = NotifyReason::fromLoose($entity->string('NotifyReason') ?? $root->string('NotifyReason'));
+
+        return new self($payload, $type, $id, $reason);
     }
 
     /**
@@ -63,11 +76,14 @@ final readonly class Notification
     }
 
     /**
-     * Case-insensitive lookup of a top-level payload field.
+     * Case-insensitive lookup of a field, checking the "Entity" object first.
      */
     public function get(string $key): mixed
     {
-        return Attributes::of($this->payload)->raw($key);
+        $root = Attributes::of($this->payload);
+        $entity = Attributes::of($root->array('Entity'));
+
+        return $entity->has($key) ? $entity->raw($key) : $root->raw($key);
     }
 
     public function isBrand(): bool
@@ -93,30 +109,23 @@ final readonly class Notification
         return $this->type === NotificationType::Partner;
     }
 
-    /**
-     * The verification status carried by the notification, if present.
-     */
-    public function verificationStatus(): ?VerificationStatus
+    public function isCreated(): bool
     {
-        foreach ([$this->payload, ...$this->nested()] as $data) {
-            $a = Attributes::of($data);
-            foreach (['Verified', 'PartnerVerified', 'Status', 'VerificationStatus'] as $key) {
-                $status = VerificationStatus::tryFrom(strtolower((string) $a->string($key)));
-                if ($status !== null) {
-                    return $status;
-                }
-            }
-        }
-
-        return null;
+        return $this->reason === NotifyReason::Create;
     }
 
-    /**
-     * @param array<array-key, mixed> $payload
-     */
-    private static function detectType(array $payload): ?NotificationType
+    public function isModified(): bool
     {
-        $a = Attributes::of($payload);
+        return $this->reason === NotifyReason::Modify;
+    }
+
+    public function isDeleted(): bool
+    {
+        return $this->reason === NotifyReason::Delete;
+    }
+
+    private static function detectType(Attributes $a): ?NotificationType
+    {
         foreach (self::TYPE_KEYS as $key) {
             $type = NotificationType::fromLoose($a->string($key));
             if ($type !== null) {
@@ -124,7 +133,15 @@ final readonly class Notification
             }
         }
 
-        // Infer from the object's shape. Chatbots carry a BrandId, so check them first.
+        return null;
+    }
+
+    /**
+     * Fallback: infer the type from an object-shaped payload.
+     */
+    private static function inferType(Attributes $a): ?NotificationType
+    {
+        // Chatbots carry a BrandId, so check them first.
         return match (true) {
             $a->has('ChatbotId'), $a->has('ChatbotInfo') => NotificationType::Chatbot,
             $a->has('PartnerId'), $a->has('PartnerInfo') => NotificationType::Partner,
@@ -133,15 +150,11 @@ final readonly class Notification
         };
     }
 
-    /**
-     * @param array<array-key, mixed> $payload
-     */
-    private static function detectId(array $payload, ?NotificationType $type): ?string
+    private static function detectId(Attributes $a, ?NotificationType $type): ?string
     {
-        $a = Attributes::of($payload);
-        $keys = $type === null ? [] : ["{$type->value}Id"];
+        $keys = $type === null ? self::ID_KEYS : [...self::ID_KEYS, "{$type->value}Id"];
 
-        foreach ([...$keys, 'Id', 'ObjectId', 'EntityId', 'ResourceId'] as $key) {
+        foreach ($keys as $key) {
             $id = $a->string($key);
             if ($id !== null && $id !== '') {
                 return $id;
@@ -149,19 +162,5 @@ final readonly class Notification
         }
 
         return null;
-    }
-
-    /**
-     * @return list<array<array-key, mixed>>
-     */
-    private function nested(): array
-    {
-        $a = Attributes::of($this->payload);
-
-        return array_values(array_filter([
-            $a->array('VerificationInfo'),
-            $a->array('Data'),
-            $a->array('Object'),
-        ]));
     }
 }

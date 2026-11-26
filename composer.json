@@ -1,0 +1,60 @@
+{
+    "name": "athenanetworks/acma-senderid",
+    "description": "PHP client for the ACMA SMS Sender ID Register API (RCS Verification Authority API), with optional Laravel integration.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": ["acma", "sender id", "sms", "mms", "rcs", "telco", "australia", "laravel"],
+    "require": {
+        "php": "^8.3",
+        "ext-json": "*",
+        "php-http/discovery": "^1.19",
+        "psr/http-client": "^1.0",
+        "psr/http-factory": "^1.0",
+        "psr/http-message": "^1.1 || ^2.0",
+        "psr/simple-cache": "^2.0 || ^3.0"
+    },
+    "require-dev": {
+        "guzzlehttp/guzzle": "^7.8",
+        "orchestra/testbench": "^9.0 || ^10.0 || ^11.0",
+        "pestphp/pest": "^3.0 || ^4.0",
+        "phpstan/phpstan": "^2.0"
+    },
+    "suggest": {
+        "guzzlehttp/guzzle": "A PSR-18 HTTP client implementation (any PSR-18 client works).",
+        "illuminate/support": "Laravel integration (service provider, facade, webhook routes, Artisan commands)."
+    },
+    "autoload": {
+        "psr-4": {
+            "AthenaNetworks\\AcmaSenderId\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "AthenaNetworks\\AcmaSenderId\\Tests\\": "tests/"
+        }
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "AthenaNetworks\\AcmaSenderId\\Laravel\\SenderIdServiceProvider"
+            ],
+            "aliases": {
+                "SenderId": "AthenaNetworks\\AcmaSenderId\\Laravel\\Facades\\SenderId"
+            }
+        }
+    },
+    "scripts": {
+        "test": "pest --exclude-group=live",
+        "test:live": "pest --group=live",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "php-http/discovery": true,
+            "pestphp/pest-plugin": true
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true
+}

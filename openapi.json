@@ -1,0 +1,2822 @@
+{
+  "openapi": "3.0.4",
+  "info": {
+    "title": "RCS VA API",
+    "description": "## Purpose\r\nThis API implements the <a href=\"https://www.gsma.com/newsroom/wp-content/uploads/NG.131-v1.0-3.pdf\" target=\"_blank\" rel=\"noopener noreferrer\">Rich Communication Services (RCS) Verification Authority API</a> standard to enable originating telecommunications providers (telcos) that have been approved by the ACMA to participate in the register to programmatically register, manage, and receive notifications for Sender ID registrations and revocations via ACMA's SMS Sender ID Register.\r\n## Process Overview\r\n![Sender ID Process Overview](https://www.acma.gov.au/sites/default/files/2026-02/Sender_ID_Process_Overview.png)\r\n\r\nEntities (brands) engage with originating telcos or Electronic Messaging Service Providers (EMSPs) to deliver SMS and MMS services. Before enabling customers to send SMS or MMS messages to the Australian public, telcos or EMSPs (either directly or through their telco partners) **must** complete the following steps:\r\n\r\n* Gather all information required to initiate a Sender ID registration.\r\n* Establish that the entity (brand) has a valid use case for the sender ID. Information about valid use case requirements is available in the <a href=\"https://www.acma.gov.au/publications/2025-10/guide/sms-sender-id-register-user-guide-telcos\" target=\"_blank\" rel=\"noopener noreferrer\">SMS Sender ID Register – User guides for telcos | ACMA</a>.\r\n* Submit sender ID registration requests.\r\n* Wait for registration of the Sender ID to be approved by the ACMA **before** enabling message delivery; **or**\r\n* If the telco is approved by the ACMA as a certified telco, perform the required verification checks and apply to register the Sender ID on behalf of the customer.\r\n* If a Sender ID is **not registered**:\r\n    * originating telcos are required to **overstamp** unregistered sender IDs with 'Unverified' before sending messages\r\n    * terminating telcos are required to **overstamp** unregistered sender IDs with 'Unverified' before terminating messages.\r\n\r\nYou must review and comply with all documentation relating to the SMS Sender ID Register, including (but not limited to):\r\n\r\n* <a href=\"https://www.legislation.gov.au/F2025L01235/latest/text\" target=\"_blank\" rel=\"noopener noreferrer\">Telecommunications (SMS Sender ID Register) Industry Standard 2025</a>\r\n* <a href=\"https://www.legislation.gov.au/F2025L01304/latest/text\" target=\"_blank\" rel=\"noopener noreferrer\">SMS Sender ID Register (Application, Access and Administration) Determination 2025</a>\r\n* <a href=\"https://www.acma.gov.au/sms-sender-id-register\" target=\"_blank\" rel=\"noopener noreferrer\">ACMA SMS Sender ID Register information page</a>\r\n* <a href=\"https://www.acma.gov.au/publications/2025-10/guide/sms-sender-id-register-user-guide-telcos\" target=\"_blank\" rel=\"noopener noreferrer\">SMS Sender ID Register User guides for telcos</a>\r\n## Terminology\r\nThe table below maps terminology used in the RCS standard (as exposed by the API) to equivalent concepts in the SMS Sender ID Register.\r\n\r\n| **RCS Term** | **Sender ID Equivalent** | **Description** |\r\n|----------|---------------------|-------------|\r\n| Chatbot | Sender ID | Represents a Sender ID registration |\r\n| Brand | Entity | Represents an entity registering a Sender ID |\r\n| Partner | Telco Partner / Entity Associate | Represents a telco partner (EMSP partner or international partner) or entity associate on whose behalf a telco applies to register a Sender ID for an entity. |\r\n## API Usage Notes\r\n* The API is **versioned** (for example, /v1/brands). Any breaking changes will be released as a new API version.\r\n* ACMA may use the following IP addresses for callback notifications to telco systems:\r\n    * 52.189.234.100\r\n    * 52.243.67.193\r\n    * 52.189.252.152\r\n    * 4.200.88.109\r\n    * 4.200.88.51\r\n    * 4.200.88.144\r\n* RCS **Brands** are not verified. Their Verified status is automatically set to **complete** upon creation and may be modified by the object owner.\r\n* ACMA does **not** verify Brand or Chatbot icons. Icons are optional.\r\n* For **Chatbots (Sender IDs)**, the full RCS verification lifecycle is implemented using the following statuses:\r\n    * `not-started` – Sender ID verification has not commenced.\r\n    * `pending` – Sender ID is under verification and cannot be modified.\r\n    * `complete` – Sender ID is verified and approved. \r\n        * If the **ServiceName** or **BrandId** is modified while in this state, verification must be restarted by setting the **Verify** field to `complete` in the current or subsequent request.\r\n    * `failed` – Sender ID verification was rejected by the customer or ACMA following review.\r\n    * `expired` – Sender ID has been revoked by the customer or subsequently rejected by ACMA.\r\n* Chatbot signatures are **not currently supported** by the API. Mobile Network Operators may use chatbots without a signature.\r\n* The following push notification change types are supported:\r\n    * `Partner` – All Partner object changes\r\n    * `Brand` – All Brand object changes\r\n    * `Chatbot` – All Chatbot object changes\r\n## Authorisation\r\n* All API endpoints use the **OAuth 2.0 Client Credentials** flow.\r\n* To create an identity with API access, your digital identity must be assigned the **\"Sender ID Originating Telco\"** role.\r\n* Use the **\"Get authentication details\"** button (top-right of the portal) to generate a **Client ID** and **Client Secret** for your organisation.\r\n    * ACMA does not enforce Client Secret expiry.\r\n    * Telcos are responsible for secure storage, rotation, and regeneration of credentials.\r\n* Refer to the **Authorizations** section of each endpoint to obtain an access token.",
+    "contact": {
+      "name": "The Sender ID Team",
+      "url": "https://www.acma.gov.au",
+      "email": "senderIDregister@acma.gov.au"
+    },
+    "version": "v1"
+  },
+  "servers": [
+    {
+      "url": "https://backend.acma.gov.au/sndr/",
+      "description": "Default"
+    }
+  ],
+  "paths": {
+    "/rcsva/v{v}/acmaValidUseCaseCheck": {
+      "post": {
+        "tags": [
+          "AcmaValidUseCaseCheck"
+        ],
+        "summary": "Checks if the sender ID has already been approved for the entity matching the provided ABN.\r\n\r\nReturns true if the sender ID has been approved. In this case, it is not required to specify a valid use case when creating this sender ID for this entity.",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcmaValidUseCaseCheck"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcmaValidUseCaseCheck"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcmaValidUseCaseCheck"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcmaValidUseCaseCheckResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcmaValidUseCaseCheckResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AcmaValidUseCaseCheckResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/brands/{brandId}": {
+      "get": {
+        "tags": [
+          "Brands"
+        ],
+        "summary": "Gets a single Brand by Id.",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "description": "Brand Id to get in UUID format",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Brands"
+        ],
+        "summary": "Updates an existing brand by ID.",
+        "description": "The brand must exist and have been created by your organisation.\r\n\r\nRequest body must contain an object containing the fields to update. Partial updates are supported, e.g.\r\n\r\n`{\r\n    \"partnerInfo\": {\r\n        \"website\": \"www.brandNewWebsite.com.au\",\r\n    }\r\n}`\r\n\r\nA brand:\r\n* Must have a unique RegNumber\r\n* `RegNumberType` should be \"ABN\" unless your account is approved as a Certified Participating Telco\r\n* `RegNumber` should be the national registration number of the brand, e.g. ABN for Australian brands or EIN for US brands\r\n* Cannot change the address country\r\n* Can only change `StateOfIncorp` and `CountryOfIncorp` together\r\n* Cannot change the `RegNumber` or `RefNumber`\r\n\r\nThe \"verify\" field must be \"not-started\" or \"complete\". There is no difference in behaviour between the two options",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "description": "Brand ID to update as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Brand"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Brand"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Brand"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Brands"
+        ],
+        "summary": "Delete a brand by ID.\r\n\r\nNote: A brand cannot be deleted if it has an active chatbot.",
+        "parameters": [
+          {
+            "name": "brandId",
+            "in": "path",
+            "description": "Brand ID to delete as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/brands": {
+      "get": {
+        "tags": [
+          "Brands"
+        ],
+        "summary": "Get all brands, optionally matching a filter.",
+        "parameters": [
+          {
+            "name": "verified",
+            "in": "query",
+            "description": "Filter brands by their verification status, should be \"not-complete\", \"pending\" or \"complete\"",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandsCollection"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandsCollection"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandsCollection"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Brands"
+        ],
+        "summary": "Creates a new brand.",
+        "description": "A brand:\r\n* Must have a unique RegNumber\r\n* `RegNumberType` should be \"ABN\" unless your account is approved as a Certified Participating Telco\r\n* `RegNumber` should be the national registration number of the brand, e.g. ABN for Australian brands or EIN for US brands\r\n* CountryOfIncorp must be specified in  ISO-3166-1 Alpha-2 scheme. e.g. (AU, US, NZ)\r\n\r\nThe \"verify\" field must be \"not-started\" or \"complete\". There is no difference in behaviour between the two options",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "JSON object defining the new brand",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandCreate"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandCreate"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/BrandCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrandIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/chatbots/{chatbotId}": {
+      "get": {
+        "tags": [
+          "Chatbots"
+        ],
+        "summary": "Get an existing chatbot by ID.",
+        "parameters": [
+          {
+            "name": "chatbotId",
+            "in": "path",
+            "description": "The chatbot ID as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Chatbots"
+        ],
+        "summary": "Update an existing chatbot by ID.",
+        "description": "The chatbot must exist and have been created by your organisation.\r\n\r\nRequest body must contain an object containing the fields to update. Partial updates are supported, e.g.\r\n\r\n`{\r\n    \"chatbotInfo\": {\r\n        \"ServiceName\": \"NEW_NAME\",\r\n    }\r\n}`\r\n\r\nThe `Verify` field should be set to `not-started` until the chatbot is ready to begin verification. Once a request is made with `Verify` set to `complete` the chatbot's verification status becomes `pending` and the chatbot is read-only until ACMA approves or rejects the chatbot's claim to the Sender Id.\r\n\r\nYou must establish that the entity has valid use for the Sender ID when the `Verify` property is anything other than `not-started`. \r\n\r\nFor entities with an ABN you can do this by including one or more of the following categories in the `category` field: \r\n`registered_business_name`, \r\n`registered_company_name`, \r\n`registered_trade_mark`, \r\n`registered_domain_name`,\r\n`exception`.\r\n\r\nIf you are a Certified Participating Telco, you may set the `Verified` field to `overwrite` to verify a Sender ID on behalf of an entity. When doing so, you must demonstrate \r\nthat valid use‑case checks have been completed for the Sender ID by including one or more of the following values in the `category` field: `trademark_register`, `national_registry`\r\n(stands for official national register or record), or `exception`. This requirement applies regardless of whether the Sender ID is for an ABN or non‑ABN entity.\r\n\r\nIf you specify the `category` property but do not include one of these categories, the request will fail with an error.\r\n\r\nIf the `Verify` field is set to `complete` the entity must have an ABN .\r\n\r\nIf the `ServiceName` or `BrandId` of an already verified chatbot (e.g. `ServiceNameVerified` is `complete`) is modified the chatbot must be re-verified. __The brand many be charged fees__ for re-verification.\r\n\r\nAfter a chatbot has begun the verification process, only it's contact details (`brandContactInfo`) may be modified.",
+        "parameters": [
+          {
+            "name": "chatbotId",
+            "in": "path",
+            "description": "ID of the chatbot to update as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Chatbot"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Chatbot"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Chatbot"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Chatbots"
+        ],
+        "summary": "Delete a chatbot by ID.",
+        "description": "A chatbot undergoing verification in the `pending` state cannot be deleted.",
+        "parameters": [
+          {
+            "name": "chatbotId",
+            "in": "path",
+            "description": "Chatbot ID to delete as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/chatbots": {
+      "get": {
+        "tags": [
+          "Chatbots"
+        ],
+        "summary": "Get all chatbots, optionally matching a filter.",
+        "description": "The returned chatbot records include the fields `x-ACMA-statusName` and `x-ACMA-description`, which are **not defined by the RCS standard**. These are ACMA-specific extensions that expose internal ACMA statuses related to a Sender ID.\r\n            \r\nStatuses provided via `x-ACMA-statusName` may include **`Email Bounce`** postfix, which indicates that an email sent by the Sender ID Register to the entity has bounced.\r\nThis typically means the email address provided by the telco in the Sender ID application may be incorrect or no longer valid.\r\n            \r\nConsumers of the API should monitor for this status.\r\nWhen it is present, the entity’s email address should be reviewed and updated either:\r\n* via the **Sender ID details page** in the web interface, or\r\n* through systems integrated with the **Sender ID Register API**.",
+        "parameters": [
+          {
+            "name": "verified",
+            "in": "query",
+            "description": "Filter chatbots by their verification status, should be \"not-started\", \"pending\" or \"complete\"",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotsCollection"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotsCollection"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotsCollection"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Chatbots"
+        ],
+        "summary": "Creates a new chatbot.",
+        "description": "A chatbot may be created before it's brand has completed verification.\r\n\r\nA chatbot can begin verification immediately if the `Verify` field is set to `complete` or `overwrite`. A chatbot is read-only until verification is successful or rejected. \r\n\r\n__Note__: FirstName, LastName and EmailAddress fields are required.\r\n\r\nYou must establish that the entity has valid use for the Sender ID when the `Verify` property is anything other than `not-started`. \r\n\r\nFor entities with an ABN you can do this by including one or more of the following categories in the `category` field: \r\n`registered_business_name`, \r\n`registered_company_name`, \r\n`registered_trade_mark`, \r\n`registered_domain_name`,\r\n`exception`.\r\n\r\nIf you are a Certified Participating Telco, you may set the `Verified` field to `overwrite` to verify a Sender ID on behalf of an entity. When doing so, you must demonstrate \r\nthat valid use‑case checks have been completed for the Sender ID by including one or more of the following values in the `category` field: `trademark_register`, `national_registry`\r\n(stands for official national register or record), or `exception`. This requirement applies regardless of whether the Sender ID is for an ABN or non‑ABN entity.\r\n\r\nIf you do not include one of these categories, the request will fail with an error.\r\n\r\nIf the `Verify` field is set to `complete` the entity must have an ABN.\r\n\r\n\r\n__Note:__ The brand may be charged fees for verification.",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotCreate"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotCreate"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChatbotCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ChatbotIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v1/util/network_providers": {
+      "get": {
+        "tags": [
+          "NetworkProvider"
+        ],
+        "summary": "Get all current Mobile Network Operators.",
+        "description": "Note:\r\n* Exists for RCS API compatibility but **not used in ACMA's implementation**.\r\n* Always returns a dummy ID: 00000000-0000-0000-0000-000000000000\r\n    * Use this ID when creating a chatbot.",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkProvidersCollection"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkProvidersCollection"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NetworkProvidersCollection"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/notification": {
+      "put": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Create or update the push notification subscription for your account.",
+        "description": "When a change is made to a Partner, Brand or Chatbot owned by your account, a HTTPS request will be made to the `CallbackUri` containing details of the change.\r\n\r\nBoth `CallbackUri` and `AuthUri` must be absolute HTTPS URLs including the scheme. Plain HTTP is not supported.\r\n\r\nNotifcations may be authorised with your systems by providing your OAuth identity provider's token endpoint as the `AuthUri`, providing any parameters as a query string.\r\nSender ID will request and send the bearer token from this provider with the notification requests.\r\n\r\nThe order push notifications are sent is not guaranteed to be chronological.\r\n\r\nIf both `CallbackUri` and `AuthUri` are the same, no authentication is performed.\r\n\r\n_Note:_ Only the following push notifications are implemented: `Partner`, `Brand`, `Chatbot`.\r\n\r\nIf a HTTP 2XX response is _not_ received when a push notification is sent to `CallbackUri` a number of retries will be made.\r\n\r\n_Note_: After creating or updating a push notification subscription it may take up to an hour before the changes take effect.",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSubscription"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSubscription"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSubscription"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Get the push notification subscription for your account.",
+        "description": "Returns the currently active push notification subscription for your account, this matches the object that was submitted to the last PUT request.",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSubscription"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSubscription"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSubscription"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Notifications"
+        ],
+        "summary": "Deletes the existing push notification for your account.",
+        "description": "Changes to Partners, Brands, Chatbots will no longer generate push notifications. For a short period of time retries of older push notifications which did not return a 200 response may occur.",
+        "parameters": [
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/partners/{partnerId}": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Get a partner by ID.",
+        "parameters": [
+          {
+            "name": "partnerId",
+            "in": "path",
+            "description": "The ID of the partner as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerDetail"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerDetail"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerDetail"
+                }
+              }
+            }
+          }
+        }
+      },
+      "patch": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Updates an existing partner by ID.",
+        "description": "The partner must exist and have been created by your organisation.\r\n\r\nRequest body must contain an object containing the fields to update. Partial updates are supported, e.g.\r\n\r\n`{\r\n    \"partnerInfo\": {\r\n        \"website\": \"www.partnerNewWebsite.com.au\",\r\n    }\r\n}`\r\n\r\nAn entity associate:\r\n* Must have a unique ABN number\r\n* `RegNumberType` must be \"ABN\"\r\n* `RegNumber` must be the registered ABN of the partner\r\n* The ABN must be active with the Australian Business Register (ABR).\r\n* `CountryOfIncorp` must be `\"AU\"` (Australia)\r\n* `Verify` property must be set to `complete` to begin the verification process or `overwrite` if your organisation is an approved Certified Participating Telco.\r\n\r\nWhile an entity associate is waiting confirmation by the brand only it's contact details (`parterContactInfo`) may be updated.\r\n\r\nFor a telco partner:\r\n* `RegNumber` must be the business registration number of the partner in the country it is registered in. For example, the partner's ABN for Australian registered partners, EIN for US partners, etc.\r\n* `RegNumberType` must be the type of registration number, e.g. `\"ABN\"`, `\"EIN\"`, etc.\r\n* CountryOfIncorp must be specified in ISO-3166-1 Alpha-2 scheme. e.g. (AU, US, NZ)\r\n* `Verify` property must be set to `complete`.",
+        "parameters": [
+          {
+            "name": "partnerId",
+            "in": "path",
+            "description": "Partner ID to update as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Partner"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/Partner"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/Partner"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Delete a partner by ID.\r\n\r\nNote: A partner cannot be deleted if it has an active chatbot.",
+        "parameters": [
+          {
+            "name": "partnerId",
+            "in": "path",
+            "description": "Partner ID to delete as a UUID",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/rcsva/v{v}/partners": {
+      "get": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Get all partners, optionally matching a filter.",
+        "description": "The returned partner records include the fields `x-ACMA-statusName`, which are **not defined by the RCS standard**. These are ACMA-specific extensions that expose internal ACMA statuses related to a Partner.\r\n            \r\nStatuses provided via `x-ACMA-statusName` may include **`Email Bounce`** postfix, which indicates that an email sent by the Sender ID Register to the entity has bounced.\r\nThis typically means the email address provided by the telco in the record may be incorrect or no longer valid.\r\n            \r\nConsumers of the API should monitor for this status.\r\nWhen it is present, the entity or telco partner’s email address should be reviewed and updated either:\r\n* via the **Partner details page** in the web interface, or\r\n* through systems integrated with the **Sender ID Register API**.",
+        "parameters": [
+          {
+            "name": "verified",
+            "in": "query",
+            "description": "Filter partners by their verification status, should be \"not-complete\", \"pending\" or \"complete\"",
+            "schema": {
+              "type": "array",
+              "items": {
+                "type": "string"
+              }
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnersCollection"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnersCollection"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnersCollection"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Partners"
+        ],
+        "summary": "Creates a new telco or entity partner.",
+        "description": "An entity associate:\r\n* Must have a unique ABN number\r\n* `RegNumberType` must be \"ABN\"\r\n* `RegNumber` must be the registered ABN of the partner\r\n* The ABN must be active with the Australian Business Register (ABR).\r\n* `CountryOfIncorp` must be `\"AU\"` (Australia)\r\n* `Verify` property must be set to `complete` to begin the verification process or `overwrite` if your organisation is an approved Certified Participating Telco.\r\n\r\nFor a telco partner:\r\n* `RegNumber` must be the business registration number of the partner in the country it is registered in. For example, the partner's ABN for Australian registered partners, EIN for US partners, etc.\r\n* `RegNumberType` must be the type of registration number, e.g. `\"ABN\"`, `\"EIN\"`, etc.\r\n* CountryOfIncorp must be specified in ISO-3166-1 Alpha-2 scheme. e.g. (AU, US, NZ)\r\n* `Verify` property must be set to `complete` and the `partnerType` query parameter must be set to `telco-partner`.",
+        "parameters": [
+          {
+            "name": "x-ACMA-partnerType",
+            "in": "query",
+            "description": "Optional parameter, must be either `telco-partner` or `entity-associate` (default)",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "x-ACMA-entityAssociatePartnerId",
+            "in": "query",
+            "description": "Optional parameter to specify the ID of the partner registering the entity associate. If specified, must be the ID of a telco partner record.",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "v",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "description": "JSON object defining the new partner",
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerCreate"
+              }
+            },
+            "text/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerCreate"
+              }
+            },
+            "application/*+json": {
+              "schema": {
+                "$ref": "#/components/schemas/PartnerCreate"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PartnerIdResponse"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Bad Request",
+            "content": {
+              "text/plain": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              },
+              "text/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RcsRequestErrorResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcmaValidUseCaseCheck": {
+        "type": "object",
+        "properties": {
+          "ABN": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AcmaValidUseCaseCheckResponse": {
+        "type": "object",
+        "properties": {
+          "HasValidUseCase": {
+            "type": "boolean"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Address": {
+        "type": "object",
+        "properties": {
+          "StreetAddress1": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "StreetAddress2": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "City": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "GoverningDistrict": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PostalCode": {
+            "maxLength": 10,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "Country": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "AddressCreate": {
+        "required": [
+          "City",
+          "Country",
+          "PostalCode",
+          "StreetAddress1"
+        ],
+        "type": "object",
+        "properties": {
+          "StreetAddress1": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "StreetAddress2": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "City": {
+            "maxLength": 50,
+            "minLength": 1,
+            "type": "string"
+          },
+          "GoverningDistrict": {
+            "maxLength": 50,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PostalCode": {
+            "maxLength": 10,
+            "minLength": 1,
+            "type": "string"
+          },
+          "Country": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code"
+          }
+        },
+        "additionalProperties": false
+      },
+      "Brand": {
+        "type": "object",
+        "properties": {
+          "BrandInfo": {
+            "$ref": "#/components/schemas/BrandInfo"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "BrandAddress": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string",
+            "description": "Main business telephone number",
+            "nullable": true
+          },
+          "Verify": {
+            "maxLength": 11,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandCreate": {
+        "required": [
+          "BrandAddress",
+          "BrandInfo",
+          "MainBusinessTN"
+        ],
+        "type": "object",
+        "properties": {
+          "BrandInfo": {
+            "$ref": "#/components/schemas/BrandInfoCreate"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "BrandAddress": {
+            "$ref": "#/components/schemas/AddressCreate"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string",
+            "description": "Main business telephone number"
+          },
+          "Verify": {
+            "maxLength": 11,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandDetail": {
+        "required": [
+          "BrandStatus",
+          "VerificationInfo"
+        ],
+        "type": "object",
+        "properties": {
+          "BrandInfo": {
+            "$ref": "#/components/schemas/BrandInfo"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "BrandAddress": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string",
+            "description": "Main business telephone number",
+            "nullable": true
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "BrandStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "VerificationInfo": {
+            "$ref": "#/components/schemas/BrandVerificationInfo"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandIdResponse": {
+        "type": "object",
+        "properties": {
+          "BrandId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandInfo": {
+        "type": "object",
+        "properties": {
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand.",
+            "nullable": true
+          },
+          "RefNumberType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "RefNumber": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "CountryOfIncorp": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code",
+            "nullable": true
+          },
+          "StateOfIncorp": {
+            "maxLength": 3,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumber": {
+            "maxLength": 21,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumberType": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "BrandName": {
+            "type": "string",
+            "nullable": true
+          },
+          "DefaultIcon": {
+            "type": "string",
+            "description": "Not used by ACMA, any string is acceptable",
+            "nullable": true
+          },
+          "ServiceIconSN": {
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          },
+          "SNJurisdiction": {
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          },
+          "ServiceIconOwner": {
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandInfoCreate": {
+        "required": [
+          "BrandName",
+          "CountryOfIncorp",
+          "RegNumber",
+          "RegNumberType",
+          "Website"
+        ],
+        "type": "object",
+        "properties": {
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand."
+          },
+          "RefNumberType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "RefNumber": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "CountryOfIncorp": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code"
+          },
+          "StateOfIncorp": {
+            "maxLength": 3,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumber": {
+            "maxLength": 21,
+            "minLength": 1,
+            "type": "string"
+          },
+          "RegNumberType": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "BrandName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          },
+          "DefaultIcon": {
+            "type": "string",
+            "description": "Not used by ACMA, any string is acceptable",
+            "nullable": true
+          },
+          "ServiceIconSN": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          },
+          "SNJurisdiction": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          },
+          "ServiceIconOwner": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "description": "Not used by ACMA",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandSummary": {
+        "required": [
+          "BrandName",
+          "BrandStatus",
+          "BrandVerified",
+          "IconVerified",
+          "Verified"
+        ],
+        "type": "object",
+        "properties": {
+          "BrandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "BrandName": {
+            "type": "string",
+            "nullable": true
+          },
+          "Verified": {
+            "type": "string",
+            "nullable": true
+          },
+          "BrandVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "IconVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "BrandStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandVerificationInfo": {
+        "required": [
+          "BrandVerified",
+          "IconVerified",
+          "Verified"
+        ],
+        "type": "object",
+        "properties": {
+          "Verified": {
+            "type": "string",
+            "nullable": true
+          },
+          "IconVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "BrandVerified": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "BrandsCollection": {
+        "type": "object",
+        "properties": {
+          "Brands": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BrandSummary"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Chatbot": {
+        "type": "object",
+        "properties": {
+          "ChatbotInfo": {
+            "$ref": "#/components/schemas/ChatbotInfo"
+          },
+          "BrandId": {
+            "type": "string",
+            "nullable": true
+          },
+          "BrandContactInfo": {
+            "$ref": "#/components/schemas/ContactInfo"
+          },
+          "NetworkProviderId": {
+            "type": "string",
+            "description": "Must provide the value \"00000000-0000-0000-0000-000000000000\" to ensure compatibility going forward",
+            "nullable": true
+          },
+          "Verify": {
+            "maxLength": 11,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotContactInfoCreate": {
+        "required": [
+          "EmailAddress",
+          "FirstName",
+          "LastName",
+          "TelephoneNumber"
+        ],
+        "type": "object",
+        "properties": {
+          "FirstName": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "LastName": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "EmailAddress": {
+            "maxLength": 252,
+            "minLength": 1,
+            "type": "string"
+          },
+          "Title": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "TelephoneNumber": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotCreate": {
+        "required": [
+          "BrandContactInfo",
+          "BrandId",
+          "ChatbotInfo",
+          "NetworkProviderId"
+        ],
+        "type": "object",
+        "properties": {
+          "ChatbotInfo": {
+            "$ref": "#/components/schemas/ChatbotInfoCreate"
+          },
+          "BrandId": {
+            "minLength": 1,
+            "type": "string"
+          },
+          "BrandContactInfo": {
+            "$ref": "#/components/schemas/ChatbotContactInfoCreate"
+          },
+          "NetworkProviderId": {
+            "minLength": 1,
+            "type": "string",
+            "description": "Must provide the value \"00000000-0000-0000-0000-000000000000\" to ensure compatibility going forward"
+          },
+          "Verify": {
+            "maxLength": 11,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotDetail": {
+        "required": [
+          "BrandContactInfo",
+          "BrandId",
+          "ChatbotInfo",
+          "NetworkProviderId",
+          "Status",
+          "VerificationInfo"
+        ],
+        "type": "object",
+        "properties": {
+          "ChatbotInfo": {
+            "$ref": "#/components/schemas/ChatbotInfoDetail"
+          },
+          "BrandId": {
+            "type": "string",
+            "nullable": true
+          },
+          "BrandContactInfo": {
+            "$ref": "#/components/schemas/ContactInfo"
+          },
+          "NetworkProviderId": {
+            "type": "string",
+            "nullable": true
+          },
+          "VerificationInfo": {
+            "$ref": "#/components/schemas/ChatbotVerificationInfo"
+          },
+          "Status": {
+            "type": "string",
+            "nullable": true
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotIdResponse": {
+        "type": "object",
+        "properties": {
+          "ChatbotId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotInfo": {
+        "type": "object",
+        "properties": {
+          "ServiceName": {
+            "maxLength": 11,
+            "minLength": 2,
+            "type": "string",
+            "description": "The text of the Sender ID",
+            "nullable": true
+          },
+          "x-ACMA-expiresOn": {
+            "type": "string",
+            "description": "Specified date when sender ID will expire. It must be at least 7 days and no more than 12 months from the current date. Must be in ISO 8601 format.",
+            "nullable": true
+          },
+          "ServiceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand.",
+            "nullable": true
+          },
+          "Description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SMSFallbackNo": {
+            "maxLength": 15,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Category": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 50 categories",
+            "nullable": true
+          },
+          "ServiceIcon": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconSN": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SNJurisdiction": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconOwner": {
+            "maxLength": 83,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "CapacityProfile": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ChatbotType": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotInfoCreate": {
+        "required": [
+          "ServiceId",
+          "ServiceName",
+          "Website"
+        ],
+        "type": "object",
+        "properties": {
+          "ServiceName": {
+            "maxLength": 11,
+            "minLength": 2,
+            "type": "string",
+            "description": "The text of the Sender ID"
+          },
+          "ServiceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "PartnerId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand."
+          },
+          "Description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SMSFallbackNo": {
+            "maxLength": 15,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Category": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 50 categories",
+            "nullable": true
+          },
+          "ServiceIcon": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconSN": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SNJurisdiction": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconOwner": {
+            "maxLength": 83,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "CapacityProfile": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ChatbotType": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-expiresOn": {
+            "type": "string",
+            "description": "Specified date when sender ID will expire. It must be at least 7 days and no more than 12 months from the current date. Must be in ISO 8601 format.",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotInfoDetail": {
+        "type": "object",
+        "properties": {
+          "ServiceName": {
+            "maxLength": 11,
+            "minLength": 2,
+            "type": "string",
+            "description": "The text of the Sender ID",
+            "nullable": true
+          },
+          "x-ACMA-expiresOn": {
+            "type": "string",
+            "description": "Specified date when sender ID will expire. It must be at least 7 days and no more than 12 months from the current date. Must be in ISO 8601 format.",
+            "nullable": true
+          },
+          "ServiceId": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerId": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand.",
+            "nullable": true
+          },
+          "Description": {
+            "maxLength": 500,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SMSFallbackNo": {
+            "maxLength": 15,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "Category": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Up to 50 categories",
+            "nullable": true
+          },
+          "ServiceIcon": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconSN": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "SNJurisdiction": {
+            "maxLength": 2,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceIconOwner": {
+            "maxLength": 83,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "CapacityProfile": {
+            "maxLength": 128,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "ChatbotType": {
+            "maxLength": 8,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "VerificationLevel": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotSummary": {
+        "required": [
+          "2FACompleted",
+          "BrandName",
+          "IconVerified",
+          "ServiceName",
+          "Status",
+          "x-ACMA-statusDescription",
+          "x-ACMA-statusName"
+        ],
+        "type": "object",
+        "properties": {
+          "ChatbotId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "ServiceName": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-expiresOn": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "BrandId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "BrandName": {
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "PartnerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "Status": {
+            "type": "string",
+            "nullable": true
+          },
+          "Verified": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "IconVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceNameVerified": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "2FACompleted": {
+            "type": "string",
+            "nullable": true
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "x-ACMA-statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-statusDescription": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotVerificationInfo": {
+        "required": [
+          "2FACompleted",
+          "IconVerified",
+          "Verified",
+          "x-ACMA-statusDescription",
+          "x-ACMA-statusName"
+        ],
+        "type": "object",
+        "properties": {
+          "Verified": {
+            "type": "string",
+            "nullable": true
+          },
+          "IconVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "ServiceNameVerified": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "2FACompleted": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-statusName": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-statusDescription": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ChatbotsCollection": {
+        "required": [
+          "Chatbots"
+        ],
+        "type": "object",
+        "properties": {
+          "Chatbots": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ChatbotSummary"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "ContactInfo": {
+        "type": "object",
+        "properties": {
+          "FirstName": {
+            "type": "string",
+            "nullable": true
+          },
+          "LastName": {
+            "type": "string",
+            "nullable": true
+          },
+          "EmailAddress": {
+            "type": "string",
+            "nullable": true
+          },
+          "Title": {
+            "type": "string",
+            "nullable": true
+          },
+          "TelephoneNumber": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NetworkProvider": {
+        "required": [
+          "NetworkProviderName"
+        ],
+        "type": "object",
+        "properties": {
+          "NetworkProviderId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "NetworkProviderName": {
+            "type": "string",
+            "nullable": true
+          },
+          "NetworkProviderVerified": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "NetworkProviderStatus": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NetworkProvidersCollection": {
+        "type": "object",
+        "properties": {
+          "NetworkProviders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/NetworkProvider"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "NotificationSubscription": {
+        "required": [
+          "AuthUri",
+          "CallbackUri"
+        ],
+        "type": "object",
+        "properties": {
+          "AuthUri": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "CallbackUri": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "type": "string"
+          },
+          "Filter": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "Partner": {
+        "type": "object",
+        "properties": {
+          "PartnerInfo": {
+            "$ref": "#/components/schemas/PartnerInfo"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerAddress": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerContactInfo": {
+            "$ref": "#/components/schemas/ContactInfo"
+          },
+          "Verify": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerContactInfoCreate": {
+        "required": [
+          "EmailAddress",
+          "FirstName",
+          "LastName",
+          "TelephoneNumber",
+          "Title"
+        ],
+        "type": "object",
+        "properties": {
+          "FirstName": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "LastName": {
+            "maxLength": 32,
+            "minLength": 1,
+            "type": "string"
+          },
+          "EmailAddress": {
+            "maxLength": 252,
+            "minLength": 1,
+            "type": "string"
+          },
+          "Title": {
+            "maxLength": 128,
+            "minLength": 1,
+            "type": "string"
+          },
+          "TelephoneNumber": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerCreate": {
+        "required": [
+          "MainBusinessTN",
+          "PartnerAddress",
+          "PartnerContactInfo",
+          "PartnerInfo"
+        ],
+        "type": "object",
+        "properties": {
+          "PartnerInfo": {
+            "$ref": "#/components/schemas/PartnerInfoCreate"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerAddress": {
+            "$ref": "#/components/schemas/AddressCreate"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 1,
+            "type": "string"
+          },
+          "PartnerContactInfo": {
+            "$ref": "#/components/schemas/PartnerContactInfoCreate"
+          },
+          "Verify": {
+            "maxLength": 11,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerDetail": {
+        "required": [
+          "PartnerStatus",
+          "PartnerVerified",
+          "x-ACMA-entityAssociatePartnerId",
+          "x-ACMA-partnerType",
+          "x-ACMA-statusName"
+        ],
+        "type": "object",
+        "properties": {
+          "PartnerInfo": {
+            "$ref": "#/components/schemas/PartnerInfo"
+          },
+          "PrimaryBusinessDomain": {
+            "maxLength": 10,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PrimaryBusinessDomainType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerAddress": {
+            "$ref": "#/components/schemas/Address"
+          },
+          "MainBusinessTN": {
+            "maxLength": 15,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerContactInfo": {
+            "$ref": "#/components/schemas/ContactInfo"
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "PartnerStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-partnerType": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-entityAssociatePartnerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "x-ACMA-statusName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerIdResponse": {
+        "type": "object",
+        "properties": {
+          "PartnerId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerInfo": {
+        "type": "object",
+        "properties": {
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand.",
+            "nullable": true
+          },
+          "RefNumberType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "RefNumber": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "CountryOfIncorp": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code",
+            "nullable": true
+          },
+          "StateOfIncorp": {
+            "maxLength": 3,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumber": {
+            "maxLength": 21,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumberType": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerName": {
+            "maxLength": 80,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerInfoCreate": {
+        "required": [
+          "CountryOfIncorp",
+          "PartnerName",
+          "RegNumber",
+          "RegNumberType",
+          "Website"
+        ],
+        "type": "object",
+        "properties": {
+          "Website": {
+            "maxLength": 128,
+            "minLength": 5,
+            "type": "string",
+            "description": "Must be a valid **https** url. Domain of the brand."
+          },
+          "RefNumberType": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "RefNumber": {
+            "maxLength": 20,
+            "minLength": 0,
+            "type": "string",
+            "description": "Field not currently used",
+            "nullable": true
+          },
+          "CountryOfIncorp": {
+            "maxLength": 2,
+            "minLength": 2,
+            "type": "string",
+            "description": "Country specified as ISO 3166-1 alpha-2 code"
+          },
+          "StateOfIncorp": {
+            "maxLength": 3,
+            "minLength": 0,
+            "type": "string",
+            "nullable": true
+          },
+          "RegNumber": {
+            "maxLength": 21,
+            "minLength": 1,
+            "type": "string"
+          },
+          "RegNumberType": {
+            "maxLength": 20,
+            "minLength": 1,
+            "type": "string"
+          },
+          "PartnerName": {
+            "maxLength": 80,
+            "minLength": 1,
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnerSummary": {
+        "required": [
+          "PartnerName",
+          "PartnerStatus",
+          "PartnerVerified",
+          "x-ACMA-entityAssociatePartnerId",
+          "x-ACMA-partnerType",
+          "x-ACMA-statusName"
+        ],
+        "type": "object",
+        "properties": {
+          "PartnerId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "PartnerName": {
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerVerified": {
+            "type": "string",
+            "nullable": true
+          },
+          "PartnerStatus": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-partnerType": {
+            "type": "string",
+            "nullable": true
+          },
+          "x-ACMA-entityAssociatePartnerId": {
+            "type": "string",
+            "format": "uuid",
+            "nullable": true
+          },
+          "UpdateDateTime": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "x-ACMA-statusName": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "PartnersCollection": {
+        "type": "object",
+        "properties": {
+          "Partners": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PartnerSummary"
+            },
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcsRequestError": {
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          },
+          "message": {
+            "type": "string",
+            "nullable": true
+          }
+        },
+        "additionalProperties": false
+      },
+      "RcsRequestErrorResponse": {
+        "type": "object",
+        "properties": {
+          "messages": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/RcsRequestError"
+            },
+            "nullable": true
+          },
+          "status": {
+            "type": "string",
+            "nullable": true,
+            "readOnly": true
+          }
+        },
+        "additionalProperties": false
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "oauth2",
+        "description": "Please insert JWT with Bearer into field",
+        "flows": {
+          "clientCredentials": {
+            "tokenUrl": "https://acmagovaub2c.b2clogin.com/acmagovaub2c.onmicrosoft.com/b2c_1a_acma_signup_signin/oauth2/v2.0/token",
+            "scopes": {
+              "https://acmagovaub2c.onmicrosoft.com/AcmaApis/.default": "Call Web API"
+            }
+          }
+        }
+      }
+    }
+  },
+  "security": [
+    {
+      "Bearer": []
+    }
+  ]
+}

@@ -134,7 +134,7 @@ describe('chatbots', function () {
     it('validates expiry date strings', function () {
         expectInvalid(fn () => new NewChatbot('b', validChatbotInfo(['expiresOn' => 'next tuesday-ish!']), validContact()), 'ChatbotInfo.x-ACMA-expiresOn');
 
-        expect((new NewChatbot('b', validChatbotInfo(['expiresOn' => '2027-01-31']), validContact()))->toArray()['ChatbotInfo']['x-ACMA-expiresOn'])->toBe('2027-01-31');
+        expect((new NewChatbot('b', validChatbotInfo(['expiresOn' => '2027-01-31']), validContact()))->toArray()['ChatbotInfo']['x-ACMA-expiresOn'])->toBe('2027-01-30T13:00:00.0000000Z');
     });
 
     it('validates partial updates without requiring fields', function () {

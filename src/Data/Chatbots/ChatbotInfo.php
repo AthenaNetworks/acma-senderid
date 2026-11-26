@@ -8,6 +8,7 @@ use AthenaNetworks\AcmaSenderId\Enums\UseCaseCategory;
 use AthenaNetworks\AcmaSenderId\Exceptions\InvalidArgumentException;
 use AthenaNetworks\AcmaSenderId\Support\Assert;
 use AthenaNetworks\AcmaSenderId\Support\Attributes;
+use AthenaNetworks\AcmaSenderId\Support\ExpiryDate;
 use AthenaNetworks\AcmaSenderId\Support\Payload;
 use DateTimeImmutable;
 use DateTimeInterface;
@@ -22,12 +23,16 @@ final class ChatbotInfo extends Payload
     /** @var list<string>|null */
     public readonly ?array $category;
 
+    /** Whether this instance was hydrated from an API response. */
+    private bool $fromResponse;
+
     /**
      * @param string|null $serviceName The Sender ID text (2-11 characters).
      * @param string|null $serviceId Your identifier for the service (1-128 characters).
      * @param string|null $website Brand domain, must be an https:// URL.
      * @param list<UseCaseCategory|string>|null $category Valid use case categories (max 50).
      * @param DateTimeInterface|string|null $expiresOn When the Sender ID expires: 7 days to 12 months from now (x-ACMA-expiresOn).
+     *     Strings without an offset are treated as Australia/Sydney local time.
      * @param int|null $verificationLevel Read-only; only present on responses.
      */
     public function __construct(
@@ -47,6 +52,7 @@ final class ChatbotInfo extends Payload
         public readonly ?string $chatbotType = null,
         public readonly ?int $verificationLevel = null,
     ) {
+        $this->fromResponse = false;
         $this->category = $category === null
             ? null
             : array_map(static fn (UseCaseCategory|string $c): string => $c instanceof UseCaseCategory ? $c->value : $c, $category);
@@ -60,20 +66,42 @@ final class ChatbotInfo extends Payload
         return array_values(array_filter(array_map(UseCaseCategory::tryFrom(...), $this->category ?? [])));
     }
 
+    /**
+     * The expiry as a date. Values from API responses are Australia/Sydney local time.
+     */
     public function expiresOn(): ?DateTimeImmutable
     {
         if ($this->expiresOn instanceof DateTimeInterface) {
             return DateTimeImmutable::createFromInterface($this->expiresOn);
         }
-        if ($this->expiresOn === null || $this->expiresOn === '') {
-            return null;
-        }
 
-        try {
-            return new DateTimeImmutable($this->expiresOn);
-        } catch (\Throwable) {
-            return null;
-        }
+        return $this->fromResponse
+            ? ExpiryDate::parseResponse($this->expiresOn)
+            : ($this->expiresOn === null ? null : ExpiryDate::parseInput($this->expiresOn));
+    }
+
+    /**
+     * A copy with a different expiry.
+     */
+    public function withExpiresOn(DateTimeInterface|string|null $expiresOn): self
+    {
+        return new self(
+            serviceName: $this->serviceName,
+            serviceId: $this->serviceId,
+            website: $this->website,
+            category: $this->category,
+            expiresOn: $expiresOn,
+            description: $this->description,
+            partnerId: $this->partnerId,
+            smsFallbackNo: $this->smsFallbackNo,
+            serviceIcon: $this->serviceIcon,
+            serviceIconSN: $this->serviceIconSN,
+            snJurisdiction: $this->snJurisdiction,
+            serviceIconOwner: $this->serviceIconOwner,
+            capacityProfile: $this->capacityProfile,
+            chatbotType: $this->chatbotType,
+            verificationLevel: $this->verificationLevel,
+        );
     }
 
     /**
@@ -101,7 +129,7 @@ final class ChatbotInfo extends Payload
         Assert::length("{$prefix}.CapacityProfile", $this->capacityProfile, 0, 128);
         Assert::length("{$prefix}.ChatbotType", $this->chatbotType, 0, 8);
 
-        if (is_string($this->expiresOn) && $this->expiresOn !== '' && $this->expiresOn() === null) {
+        if (is_string($this->expiresOn) && $this->expiresOn !== '' && ExpiryDate::parseInput($this->expiresOn) === null) {
             throw InvalidArgumentException::forField("{$prefix}.x-ACMA-expiresOn", "must be an ISO 8601 date (got \"{$this->expiresOn}\")");
         }
     }
@@ -113,7 +141,7 @@ final class ChatbotInfo extends Payload
     {
         $a = Attributes::of($data);
 
-        return new self(
+        $info = new self(
             serviceName: $a->string('ServiceName'),
             serviceId: $a->string('ServiceId'),
             website: $a->string('Website'),
@@ -130,6 +158,9 @@ final class ChatbotInfo extends Payload
             chatbotType: $a->string('ChatbotType'),
             verificationLevel: $a->int('VerificationLevel'),
         );
+        $info->fromResponse = true;
+
+        return $info;
     }
 
     protected function fields(): array
@@ -148,7 +179,7 @@ final class ChatbotInfo extends Payload
             'ServiceIconOwner' => $this->serviceIconOwner,
             'CapacityProfile' => $this->capacityProfile,
             'ChatbotType' => $this->chatbotType,
-            'x-ACMA-expiresOn' => $this->expiresOn,
+            'x-ACMA-expiresOn' => $this->expiresOn === null || $this->expiresOn === '' ? null : (ExpiryDate::format($this->expiresOn) ?? $this->expiresOn),
         ];
     }
 }

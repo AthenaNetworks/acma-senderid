@@ -6,6 +6,7 @@ namespace AthenaNetworks\AcmaSenderId\Data\Chatbots;
 
 use AthenaNetworks\AcmaSenderId\Enums\VerificationStatus;
 use AthenaNetworks\AcmaSenderId\Support\Attributes;
+use AthenaNetworks\AcmaSenderId\Support\ExpiryDate;
 use AthenaNetworks\AcmaSenderId\Support\HasAcmaStatus;
 use DateTimeImmutable;
 
@@ -60,7 +61,8 @@ final readonly class ChatbotSummary
             twoFactorCompleted: $a->string('2FACompleted'),
             acmaStatusName: $a->string('x-ACMA-statusName'),
             acmaStatusDescription: $a->string('x-ACMA-statusDescription'),
-            expiresOn: $a->date('x-ACMA-expiresOn'),
+            // ACMA labels this "Z" but it is Australia/Sydney local time.
+            expiresOn: ExpiryDate::parseResponse($a->string('x-ACMA-expiresOn')),
             updatedAt: $a->date('UpdateDateTime'),
             raw: $data,
         );

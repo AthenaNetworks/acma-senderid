@@ -131,6 +131,15 @@ $client->senderIds()->update($senderId, ChatbotUpdate::submitForVerification());
 
 Update objects (`BrandUpdate`, `ChatbotUpdate`, `PartnerUpdate`) send only the fields you set.
 
+### Sender ID expiry dates
+
+`x-ACMA-expiresOn` behaves differently from what the spec describes. The following was observed on the ACMA test tenant, and the package handles it for you:
+
+- **Format.** ACMA only accepts .NET round-trip format with exactly 7 fractional digits (`2027-01-25T13:45:30.0000000Z`). Date-only values, plain ISO 8601 and 3 or 6 fractional digits are all rejected. Pass a `DateTimeInterface`, or a string with or without an offset (strings without one are treated as Australia/Sydney time), and the package formats it correctly.
+- **Time zone.** ACMA stores the value as Australia/Sydney local time. The detail endpoint returns it without an offset, and the list endpoint labels it `Z`, which is wrong. `expiresOn()` and `ChatbotSummary::$expiresOn` return the correct instant in `Australia/Sydney`.
+- **Updates.** Once a chatbot has an expiry, ACMA rejects any PATCH that doesn't re-send it ("Error in expiresOn. Invalid format."), even contact-only changes. `chatbots()->update()` therefore fetches the current expiry and re-sends it when your update doesn't set one. That costs one extra GET; pass `preserveExpiry: false` to skip it.
+- **Range.** The spec's 7-day to 12-month window isn't enforced when a draft is created, so the package doesn't validate it either.
+
 ### Partners
 
 ```php
@@ -300,9 +309,15 @@ The `senderid.webhook` config also lets you change the route `prefix`, `domain` 
 composer test         # unit + Laravel tests (mocked HTTP)
 composer analyse      # PHPStan level 8
 
-# Read-only tests against the live ACMA API (never create or modify records):
+# Live tests against the ACMA API. Read-only by default:
 ACMA_SENDERID_CLIENT_ID=... ACMA_SENDERID_CLIENT_SECRET=... composer test:live
+
+# Write tests: create, update and delete brands, draft Sender IDs and partners.
+# Use a TEST tenant only. They clean up after themselves and never submit for verification.
+ACMA_SENDERID_ALLOW_WRITES=1 ACMA_SENDERID_CLIENT_ID=... ACMA_SENDERID_CLIENT_SECRET=... composer test:live
 ```
+
+The write tests need an ABN that is active on the Australian Business Register, because ACMA validates brand ABNs. By default they use the ACMA's own ABN; set `ACMA_SENDERID_TEST_ABN` to use a different one.
 
 ## Compliance
 

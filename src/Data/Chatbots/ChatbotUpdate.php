@@ -33,6 +33,27 @@ final class ChatbotUpdate extends Payload
     }
 
     /**
+     * Whether this update sets an expiry.
+     */
+    public function setsExpiry(): bool
+    {
+        return $this->chatbotInfo?->expiresOn !== null && $this->chatbotInfo->expiresOn !== '';
+    }
+
+    /**
+     * A copy that also sets the given expiry.
+     */
+    public function withExpiresOn(\DateTimeInterface $expiresOn): self
+    {
+        return new self(
+            chatbotInfo: ($this->chatbotInfo ?? new ChatbotInfo())->withExpiresOn($expiresOn),
+            contact: $this->contact,
+            verify: $this->verify,
+            brandId: $this->brandId,
+        );
+    }
+
+    /**
      * Submit an existing draft for ACMA verification.
      */
     public static function submitForVerification(Verify $verify = Verify::Complete, ?ChatbotInfo $chatbotInfo = null): self

@@ -45,7 +45,7 @@
     },
     "scripts": {
         "test": "pest --exclude-group=live",
-        "test:live": "pest --group=live",
+        "test:live": "ACMA_SENDERID_ALLOW_WRITES=${ACMA_SENDERID_ALLOW_WRITES:-0} pest --group=live",
         "analyse": "phpstan analyse"
     },
     "config": {

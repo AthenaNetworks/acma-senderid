@@ -63,10 +63,22 @@ final class Chatbots
     /**
      * Partially update a Sender ID registration and return its ID.
      *
+     * ACMA currently rejects any PATCH to a chatbot that has an expiry unless
+     * the expiry is re-sent ("Error in expiresOn. Invalid format."). When
+     * $preserveExpiry is true and $changes does not set one, the current
+     * expiry is fetched and re-sent unchanged (one extra GET request).
+     *
      * @throws ApiException
      */
-    public function update(string $chatbotId, ChatbotUpdate $changes): string
+    public function update(string $chatbotId, ChatbotUpdate $changes, bool $preserveExpiry = true): string
     {
+        if ($preserveExpiry && ! $changes->setsExpiry()) {
+            $current = $this->get($chatbotId)->chatbotInfo->expiresOn();
+            if ($current !== null) {
+                $changes = $changes->withExpiresOn($current);
+            }
+        }
+
         return Ids::extract($this->transport->patch($this->transport->path('chatbots', $chatbotId), $changes->toArray()), 'ChatbotId', $chatbotId);
     }
 

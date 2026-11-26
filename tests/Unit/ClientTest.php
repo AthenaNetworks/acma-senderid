@@ -247,7 +247,7 @@ describe('chatbots', function () {
                 'ServiceId' => 'athena-alerts',
                 'Website' => 'https://athena.example',
                 'Category' => ['registered_business_name'],
-                'x-ACMA-expiresOn' => '2027-06-30T00:00:00+10:00',
+                'x-ACMA-expiresOn' => '2027-06-29T14:00:00.0000000Z',
             ],
             'BrandId' => BRAND_ID,
             'BrandContactInfo' => [
@@ -262,11 +262,44 @@ describe('chatbots', function () {
     });
 
     it('submits a draft for verification', function () {
-        $this->http->queueJson(['ChatbotId' => CHATBOT_ID]);
+        $this->http->queueJson(['ChatbotInfo' => ['ServiceName' => 'ATHENA']])->queueJson(['ChatbotId' => CHATBOT_ID]);
 
         $this->client->chatbots()->update(CHATBOT_ID, ChatbotUpdate::submitForVerification());
 
         expect($this->http->lastJson())->toBe(['Verify' => 'complete']);
+    });
+
+    it('re-sends the current expiry on update (ACMA rejects PATCHes without it)', function () {
+        $this->http
+            ->queueJson(['ChatbotInfo' => ['ServiceName' => 'ATHENA', 'x-ACMA-expiresOn' => '2027-01-26T00:45:30.0000000']])
+            ->queueJson(['ChatbotId' => CHATBOT_ID]);
+
+        $this->client->chatbots()->update(CHATBOT_ID, new ChatbotUpdate(contact: new ContactInfo(title: 'Manager')));
+
+        expect($this->http->requests[0]->getMethod())->toBe('GET')
+            ->and($this->http->lastRequest()->getMethod())->toBe('PATCH')
+            ->and($this->http->lastJson())->toBe([
+                'ChatbotInfo' => ['x-ACMA-expiresOn' => '2027-01-25T13:45:30.0000000Z'],
+                'BrandContactInfo' => ['Title' => 'Manager'],
+            ]);
+    });
+
+    it('does not fetch when the update sets an expiry', function () {
+        $this->http->queueJson(['ChatbotId' => CHATBOT_ID]);
+
+        $this->client->chatbots()->update(CHATBOT_ID, new ChatbotUpdate(new ChatbotInfo(description: 'x', expiresOn: '2027-06-30')));
+
+        expect($this->http->requests)->toHaveCount(1)
+            ->and($this->http->lastJson())->toBe(['ChatbotInfo' => ['Description' => 'x', 'x-ACMA-expiresOn' => '2027-06-29T14:00:00.0000000Z']]);
+    });
+
+    it('can skip preserving the expiry', function () {
+        $this->http->queueJson(['ChatbotId' => CHATBOT_ID]);
+
+        $this->client->chatbots()->update(CHATBOT_ID, new ChatbotUpdate(new ChatbotInfo(description: 'x')), preserveExpiry: false);
+
+        expect($this->http->requests)->toHaveCount(1)
+            ->and($this->http->lastJson())->toBe(['ChatbotInfo' => ['Description' => 'x']]);
     });
 
     it('hydrates chatbot details including ACMA extensions', function () {

@@ -19,7 +19,8 @@ use Psr\Http\Message\StreamFactoryInterface;
 /**
  * Sends authenticated JSON requests to the ACMA API and maps failures to exceptions.
  *
- * @internal Use the resource classes on {@see \AthenaNetworks\AcmaSenderId\SenderIdClient}.
+ * Low-level: prefer the resource classes on {@see \AthenaNetworks\AcmaSenderId\SenderIdClient}.
+ * Exposed via SenderIdClient::transport() for endpoints this package does not wrap.
  */
 final class Transport
 {

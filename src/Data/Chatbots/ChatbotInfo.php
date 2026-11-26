@@ -49,7 +49,7 @@ final class ChatbotInfo extends Payload
     ) {
         $this->category = $category === null
             ? null
-            : array_values(array_map(static fn (UseCaseCategory|string $c): string => $c instanceof UseCaseCategory ? $c->value : $c, $category));
+            : array_map(static fn (UseCaseCategory|string $c): string => $c instanceof UseCaseCategory ? $c->value : $c, $category);
     }
 
     /**

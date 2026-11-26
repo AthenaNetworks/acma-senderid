@@ -49,10 +49,10 @@ final class ClientCredentialsTokenProvider implements TokenProvider
             return $this->token = $cached;
         }
 
-        $this->token = $this->requestToken();
-        $this->writeCache($this->token);
+        $token = $this->requestToken();
+        $this->writeCache($token);
 
-        return $this->token;
+        return $this->token = $token;
     }
 
     public function invalidate(): void

@@ -36,7 +36,7 @@ final class NotificationSubscription extends Payload
     ) {
         $this->filter = $filter === null
             ? null
-            : array_values(array_map(static fn (NotificationType|string $t): string => $t instanceof NotificationType ? $t->value : $t, $filter));
+            : array_map(static fn (NotificationType|string $t): string => $t instanceof NotificationType ? $t->value : $t, $filter);
     }
 
     /**

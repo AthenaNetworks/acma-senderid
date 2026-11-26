@@ -23,6 +23,6 @@ final class Filters
 
         $statuses = is_array($statuses) ? $statuses : [$statuses];
 
-        return array_values(array_map(static fn (VerificationStatus|string $s): string => $s instanceof VerificationStatus ? $s->value : $s, $statuses));
+        return array_map(static fn (VerificationStatus|string $s): string => $s instanceof VerificationStatus ? $s->value : $s, $statuses);
     }
 }

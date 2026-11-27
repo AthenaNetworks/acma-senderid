@@ -179,7 +179,27 @@ final class ChatbotInfo extends Payload
             'ServiceIconOwner' => $this->serviceIconOwner,
             'CapacityProfile' => $this->capacityProfile,
             'ChatbotType' => $this->chatbotType,
-            'x-ACMA-expiresOn' => $this->expiresOn === null || $this->expiresOn === '' ? null : (ExpiryDate::format($this->expiresOn) ?? $this->expiresOn),
+            'x-ACMA-expiresOn' => $this->expiresOnForRequest(),
         ];
+    }
+
+    /**
+     * The expiry as ACMA must receive it: the same instant expiresOn() reports,
+     * so a ChatbotInfo read from a response is re-sent unchanged (ACMA's
+     * offsets on responses are ignored there, and must be here too).
+     */
+    private function expiresOnForRequest(): ?string
+    {
+        if ($this->expiresOn === null || $this->expiresOn === '') {
+            return null;
+        }
+
+        $date = $this->expiresOn();
+        if ($date !== null) {
+            return ExpiryDate::format($date);
+        }
+
+        // Only an unparseable string gets here (validate() rejects those); send it as given.
+        return is_string($this->expiresOn) ? $this->expiresOn : null;
     }
 }

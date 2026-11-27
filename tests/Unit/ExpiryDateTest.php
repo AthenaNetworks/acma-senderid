@@ -46,3 +46,11 @@ it('returns null for empty or invalid values', function () {
         ->and(ExpiryDate::parseResponse('garbage'))->toBeNull()
         ->and(ExpiryDate::format('garbage'))->toBeNull();
 });
+
+it('re-sends an expiry read from a response as the instant expiresOn() reports', function () {
+    // ACMA's offsets on responses are not to be trusted (see the list "Z").
+    $received = ChatbotInfo::fromArray(['x-ACMA-expiresOn' => '2027-01-26T00:45:30Z']);
+
+    expect($received->expiresOn()?->setTimezone(new DateTimeZone('UTC'))->format('c'))->toBe('2027-01-25T13:45:30+00:00')
+        ->and($received->toArray()['x-ACMA-expiresOn'])->toBe('2027-01-25T13:45:30.0000000Z');
+});

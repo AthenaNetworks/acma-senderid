@@ -53,11 +53,11 @@ final class Chatbots
     /**
      * Create a Sender ID registration and return its ID.
      *
-     * @throws ApiException
+     * @throws ApiException UnexpectedResponseException (a ServerException) if ACMA returns no ID.
      */
     public function create(NewChatbot $chatbot): string
     {
-        return Ids::extract($this->transport->post($this->transport->path('chatbots'), $chatbot->toArray()), 'ChatbotId');
+        return Ids::created($this->transport->post($this->transport->path('chatbots'), $chatbot->toArray()), 'ChatbotId');
     }
 
     /**

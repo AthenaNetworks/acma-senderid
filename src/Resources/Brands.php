@@ -51,11 +51,11 @@ final class Brands
     /**
      * Create a brand and return its ID.
      *
-     * @throws ApiException
+     * @throws ApiException UnexpectedResponseException (a ServerException) if ACMA returns no ID.
      */
     public function create(NewBrand $brand): string
     {
-        return Ids::extract($this->transport->post($this->transport->path('brands'), $brand->toArray()), 'BrandId');
+        return Ids::created($this->transport->post($this->transport->path('brands'), $brand->toArray()), 'BrandId');
     }
 
     /**

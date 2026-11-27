@@ -473,3 +473,27 @@ it('checks for an existing valid use case', function () {
         ->and($this->http->lastJson())->toBe(['ABN' => '51824753556', 'ServiceName' => 'ATHENA'])
         ->and($this->http->lastRequest()->getUri()->getPath())->toBe('/sndr/rcsva/v1/acmaValidUseCaseCheck');
 });
+
+it('throws instead of returning an empty ID when a create succeeds without one', function (Closure $create) {
+    $this->http->queueJson([]);
+
+    $create($this->client);
+})->with([
+    'brand' => [fn ($c) => $c->brands()->create(new NewBrand(
+        brandInfo: BrandInfo::australian('Athena Networks Pty Ltd', '12345678901', 'https://athena.example'),
+        address: new Address('1 Example St', 'Brisbane', '4000', 'AU'),
+        mainBusinessTN: '+61730000000',
+    ))],
+    'sender id' => [fn ($c) => $c->senderIds()->create(new NewChatbot(
+        brandId: BRAND_ID,
+        chatbotInfo: new ChatbotInfo(serviceName: 'ATHENA', serviceId: 'athena-alerts', website: 'https://athena.example'),
+        contact: new ContactInfo('Jo', 'Citizen', 'jo@athena.example', '+61400000000'),
+    ))],
+    'partner' => [fn ($c) => $c->partners()->create(new NewPartner(
+        partnerInfo: new PartnerInfo('Acme EMSP Inc', '12-3456789', 'https://acme.example', 'EIN', 'US'),
+        address: new Address('1 Main St', 'Austin', '73301', 'US'),
+        mainBusinessTN: '+15125550100',
+        contact: new ContactInfo('Sam', 'Lee', 'sam@acme.example', '+15125550100', 'CTO'),
+        type: PartnerType::TelcoPartner,
+    ))],
+])->throws(ServerException::class, 'returned no');

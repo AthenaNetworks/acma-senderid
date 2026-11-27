@@ -49,11 +49,11 @@ final class Partners
     /**
      * Create a partner and return its ID.
      *
-     * @throws ApiException
+     * @throws ApiException UnexpectedResponseException (a ServerException) if ACMA returns no ID.
      */
     public function create(NewPartner $partner): string
     {
-        return Ids::extract(
+        return Ids::created(
             $this->transport->post($this->transport->path('partners'), $partner->toArray(), $partner->queryParameters()),
             'PartnerId',
         );

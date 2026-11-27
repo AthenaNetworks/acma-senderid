@@ -168,7 +168,8 @@ Every exception implements `AthenaNetworks\AcmaSenderId\Exceptions\SenderIdExcep
 | `AuthorizationException`     | 403                                                                 |
 | `NotFoundException`          | 404: the record doesn't exist or isn't owned by your organisation   |
 | `RateLimitException`         | 429                                                                 |
-| `ServerException`            | 5xx                                                                 |
+| `ServerException`            | 5xx: the request may still have been applied                        |
+| `UnexpectedResponseException` | A 2xx ACMA's answer couldn't be used (not JSON, or no ID on a create). Extends `ServerException`: it may have been applied |
 | `ApiException`               | Base class for all of the above HTTP errors                         |
 | `TransportException`         | Network, DNS or TLS failure                                         |
 

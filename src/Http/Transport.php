@@ -8,6 +8,7 @@ use AthenaNetworks\AcmaSenderId\Auth\TokenProvider;
 use AthenaNetworks\AcmaSenderId\Config;
 use AthenaNetworks\AcmaSenderId\Exceptions\ApiException;
 use AthenaNetworks\AcmaSenderId\Exceptions\TransportException;
+use AthenaNetworks\AcmaSenderId\Exceptions\UnexpectedResponseException;
 use JsonException;
 use Psr\Http\Client\ClientExceptionInterface;
 use Psr\Http\Client\ClientInterface;
@@ -174,7 +175,9 @@ final class Transport
 
         $decoded = json_decode($body, true);
         if (! is_array($decoded)) {
-            throw new ApiException(
+            // A 2xx was received, so the request may have been applied: report
+            // it as a server-side fault, not as a refusal.
+            throw new UnexpectedResponseException(
                 sprintf('ACMA Sender ID API returned a non-JSON response for %s %s', $request->getMethod(), $request->getUri()->getPath()),
                 $response->getStatusCode(),
                 request: $request,

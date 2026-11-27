@@ -135,6 +135,17 @@ describe('errors', function () {
         $this->client->brands()->list();
     })->throws(ApiException::class, 'non-JSON');
 
+    it('reports a non-JSON success to a create as a server fault, since it may have been applied', function () {
+        $this->http->queue(new Response(200, [], '<html>'));
+
+        $this->client->senderIds()->create(new NewChatbot(
+            brandId: BRAND_ID,
+            chatbotInfo: new ChatbotInfo(serviceName: 'ATHENA', serviceId: 'athena-alerts', website: 'https://athena.example'),
+            contact: new ContactInfo('Jo', 'Citizen', 'jo@athena.example', '+61400000000'),
+            verify: Verify::Complete,
+        ));
+    })->throws(ServerException::class, 'non-JSON');
+
     it('wraps network failures', function () {
         $this->http->queue(new ConnectException('timed out', new Request('GET', 'https://x')));
 
